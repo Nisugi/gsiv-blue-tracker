@@ -54,7 +54,6 @@ class SearchFilters:
     sort_asc: bool = False
     page: int = 1
     per_page: int = PER_PAGE
-    all_posts: bool = False        # surprise mode: every stored post, including reply targets
 
     @property
     def broad(self) -> bool:
@@ -91,7 +90,7 @@ def build_search_sql(f: SearchFilters, hidden_channels, now: datetime | None = N
         where.append("p.created_at < %(date_to)s")
         params["date_to"] = f.date_to
 
-    source = "posts" if f.all_posts else "visible_posts"
+    source = "visible_posts"
     where_sql = " AND ".join(f"({w.strip()})" for w in where)
     order = "ASC" if f.sort_asc else "DESC"
 
@@ -251,16 +250,6 @@ class Archive:
             ORDER BY lower({AUTHOR_NAME})
         """)
         return [{"id": str(r["member_id"]), "name": r["name"], "avatar_url": r["avatar_url"]} for r in rows]
-
-    def members(self, limit: int = 2000) -> list[dict]:
-        """Members with at least one stored post (for the surprise page)."""
-        rows = self._all(f"""
-            SELECT m.member_id, {AUTHOR_NAME} AS name, m.is_tracked
-            FROM members m
-            WHERE EXISTS (SELECT 1 FROM posts p WHERE p.author_id = m.member_id)
-            ORDER BY lower({AUTHOR_NAME}) LIMIT %(limit)s
-        """, {"limit": limit})
-        return [{"id": str(r["member_id"]), "name": r["name"], "is_tracked": r["is_tracked"]} for r in rows]
 
     def channel_rows(self) -> list[dict]:
         """Non-thread channels that have visible posts (directly or in their threads)."""

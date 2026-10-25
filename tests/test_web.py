@@ -115,11 +115,6 @@ def test_pagination_capped_at_max_results():
     assert build_search_sql(f, set(), NOW)[2]["limit"] == 0
 
 
-def test_surprise_uses_all_posts():
-    rows_sql, _, _ = build_search_sql(SearchFilters(all_posts=True), set(), NOW)
-    assert "FROM posts p" in rows_sql and "deleted" not in rows_sql
-
-
 def test_serialize_post_ids_are_strings():
     row = dict(post_id=BIG_ID, chan_id=BIG_ID + 1, author_id=BIG_ID + 2, content="hi",
                created_at=NOW, reply_to_id=BIG_ID - 1, reason="author", channel_parent_id=None)
@@ -152,7 +147,6 @@ def test_filters_from_args():
     assert f.author_ids == [BIG_ID, 5] and f.channel_ids == [7]
     assert f.page == 1 and f.per_page == 100 and f.sort_asc
     assert f.date_to == datetime(2025, 1, 6, tzinfo=timezone.utc)  # whole end day included
-    assert not f.all_posts
 
 
 def test_bad_date_ignored():
@@ -188,9 +182,6 @@ class FakeArchive:
 
     def tracked_authors(self):
         return [{"id": str(BIG_ID), "name": "Naijin", "avatar_url": None}]
-
-    def members(self):
-        return []
 
     def channels(self):
         return [{"id": "1", "name": "help", "featured": True}]
@@ -230,7 +221,7 @@ def test_index_uses_label_and_server_name(client_and_archive):
     html = client.get("/").get_data(as_text=True)
     assert "GemStone IV GM Tracker" in html
     assert "/static/common.js" in html
-    assert "surprise" in client.get("/surprise").get_data(as_text=True).lower()
+    assert client.get("/surprise").status_code == 404
 
 
 def test_search_route_parses_and_caches(client_and_archive):
@@ -247,20 +238,14 @@ def test_search_route_parses_and_caches(client_and_archive):
     assert len(archive.searches) == 2
 
 
-def test_surprise_search_reads_all_posts(client_and_archive):
-    client, archive = client_and_archive
-    client.get("/api/surprise_search?members=3")
-    f = archive.searches[0]
-    assert f.all_posts and f.author_ids == [3]
-
-
 def test_list_endpoints(client_and_archive):
     client, _ = client_and_archive
     assert client.get("/api/authors").get_json()[0]["id"] == str(BIG_ID)
     assert client.get("/api/channels").get_json()[0]["featured"] is True
     assert client.get("/api/stats").get_json()["total_posts"] == 5
     assert client.get("/api/channels/1/threads").get_json() == []
-    assert client.get("/api/members").get_json() == []
+    assert client.get("/api/members").status_code == 404
+    assert client.get("/api/surprise_search").status_code == 404
 
 
 def test_post_and_revisions(client_and_archive):

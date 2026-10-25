@@ -1,4 +1,4 @@
-// Shared rendering and search plumbing for the index and surprise pages.
+// Rendering and search plumbing for the archive page.
 "use strict";
 
 const Archive = (() => {

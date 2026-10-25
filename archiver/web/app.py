@@ -84,8 +84,8 @@ def _flag(value) -> bool:
     return str(value).lower() in ("1", "true", "yes", "on")
 
 
-def filters_from_args(args, surprise: bool = False) -> SearchFilters:
-    authors = args.get("authors") or args.get("author") or args.get("members") or ""
+def filters_from_args(args) -> SearchFilters:
+    authors = args.get("authors") or args.get("author") or ""
     return SearchFilters(
         query=parse_search_query(args.get("q", "").strip()),
         author_ids=_id_list(authors),
@@ -96,7 +96,6 @@ def filters_from_args(args, surprise: bool = False) -> SearchFilters:
         sort_asc=args.get("sort", "desc").lower() == "asc",
         page=_int(args.get("page"), 1, 1, 10_000),
         per_page=_int(args.get("per_page"), PER_PAGE, 1, MAX_PER_PAGE),
-        all_posts=surprise,
     )
 
 
@@ -166,10 +165,6 @@ def create_app(settings=None, archive=None, broadcaster=None) -> Flask:
     def index():
         return render_template("index.html")
 
-    @app.get("/surprise")
-    def surprise():
-        return render_template("surprise.html")
-
     # -- API -----------------------------------------------------------------
 
     @app.get("/api/search")
@@ -177,18 +172,9 @@ def create_app(settings=None, archive=None, broadcaster=None) -> Flask:
         f = filters_from_args(request.args)
         return jsonify(cached(request_key(), SEARCH_TTL, lambda: archive.search(f)))
 
-    @app.get("/api/surprise_search")
-    def surprise_search():
-        f = filters_from_args(request.args, surprise=True)
-        return jsonify(cached(request_key(), SEARCH_TTL, lambda: archive.search(f)))
-
     @app.get("/api/authors")
     def authors():
         return jsonify(cached("authors", LIST_TTL, archive.tracked_authors))
-
-    @app.get("/api/members")
-    def members():
-        return jsonify(cached("members", LIST_TTL, archive.members))
 
     @app.get("/api/channels")
     def channels():
