@@ -82,20 +82,19 @@ def test_edit_keeps_previous_content():
         assert not await s.record_edit(1, "v2", None)       # unchanged content
         assert not await s.record_edit(404, "x", None)      # not stored
         assert await s.pool.fetchval("SELECT content FROM posts WHERE post_id = 1") == "v2"
-        rev = await s.pool.fetchrow("SELECT kind, content FROM post_revisions WHERE post_id = 1")
-        assert (rev["kind"], rev["content"]) == ("edit", "v1")
+        assert await s.pool.fetchval("SELECT content FROM post_revisions WHERE post_id = 1") == "v1"
     run(with_store(body))
 
 
-def test_delete_is_soft_and_once():
+def test_delete_removes_post_and_everything_attached():
     async def body(s):
-        await s.save_post(fake_message(1), "author", author_tracked=True)
+        await s.save_post(fake_message(1, content="v1"), "author", author_tracked=True)
+        await s.record_edit(1, "v2", None)
         assert await s.record_delete(1)
         assert not await s.record_delete(1)
         assert not await s.record_delete(404)
-        assert await s.pool.fetchval("SELECT deleted_at IS NOT NULL FROM posts WHERE post_id = 1")
-        assert await s.pool.fetchval("SELECT count(*) FROM visible_posts") == 0
-        assert await s.pool.fetchval("SELECT count(*) FROM post_revisions WHERE kind = 'delete'") == 1
+        for table in ("posts", "post_revisions", "attachments", "embeds"):
+            assert await s.pool.fetchval(f"SELECT count(*) FROM {table}") == 0, table
     run(with_store(body))
 
 

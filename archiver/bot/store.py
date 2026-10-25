@@ -123,7 +123,7 @@ class Store:
             if old is None or old == content:
                 return False
             await conn.execute(
-                "INSERT INTO post_revisions (post_id, kind, content) VALUES ($1, 'edit', $2)", post_id, old
+                "INSERT INTO post_revisions (post_id, content) VALUES ($1, $2)", post_id, old
             )
             await conn.execute(
                 "UPDATE posts SET content = $2, edited_at = $3 WHERE post_id = $1",
@@ -132,19 +132,8 @@ class Store:
             return True
 
     async def record_delete(self, post_id: int) -> bool:
-        """Soft-delete a stored post."""
-        async with self.pool.acquire() as conn, conn.transaction():
-            content = await conn.fetchval(
-                "UPDATE posts SET deleted_at = now() WHERE post_id = $1 AND deleted_at IS NULL "
-                "RETURNING content",
-                post_id,
-            )
-            if content is None:
-                return False
-            await conn.execute(
-                "INSERT INTO post_revisions (post_id, kind, content) VALUES ($1, 'delete', $2)", post_id, content
-            )
-            return True
+        """Remove a deleted message; revisions, attachments and embeds cascade."""
+        return await self.pool.fetchval("DELETE FROM posts WHERE post_id = $1 RETURNING 1", post_id) is not None
 
     # ── Crawl state ──────────────────────────────────────────────────
 

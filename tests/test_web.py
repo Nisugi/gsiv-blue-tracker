@@ -115,10 +115,9 @@ def test_pagination_capped_at_max_results():
     assert build_search_sql(f, set(), NOW)[2]["limit"] == 0
 
 
-def test_surprise_uses_all_posts_and_deleted_filter():
-    f = SearchFilters(all_posts=True, deleted_only=True)
-    rows_sql, _, _ = build_search_sql(f, set(), NOW)
-    assert "FROM posts p" in rows_sql and "p.deleted_at IS NOT NULL" in rows_sql
+def test_surprise_uses_all_posts():
+    rows_sql, _, _ = build_search_sql(SearchFilters(all_posts=True), set(), NOW)
+    assert "FROM posts p" in rows_sql and "deleted" not in rows_sql
 
 
 def test_serialize_post_ids_are_strings():
@@ -153,7 +152,7 @@ def test_filters_from_args():
     assert f.author_ids == [BIG_ID, 5] and f.channel_ids == [7]
     assert f.page == 1 and f.per_page == 100 and f.sort_asc
     assert f.date_to == datetime(2025, 1, 6, tzinfo=timezone.utc)  # whole end day included
-    assert not f.all_posts and not f.deleted_only
+    assert not f.all_posts
 
 
 def test_bad_date_ignored():
@@ -185,7 +184,7 @@ class FakeArchive:
     def revisions(self, post_id):
         if post_id not in self.posts:
             return None
-        return [{"id": "1", "kind": "edit", "content": "old", "captured_at": "2026-01-01T00:00:00+00:00"}]
+        return [{"id": "1", "content": "old", "captured_at": "2026-01-01T00:00:00+00:00"}]
 
     def tracked_authors(self):
         return [{"id": str(BIG_ID), "name": "Naijin", "avatar_url": None}]
@@ -250,9 +249,9 @@ def test_search_route_parses_and_caches(client_and_archive):
 
 def test_surprise_search_reads_all_posts(client_and_archive):
     client, archive = client_and_archive
-    client.get("/api/surprise_search?deleted=1&members=3")
+    client.get("/api/surprise_search?members=3")
     f = archive.searches[0]
-    assert f.all_posts and f.deleted_only and f.author_ids == [3]
+    assert f.all_posts and f.author_ids == [3]
 
 
 def test_list_endpoints(client_and_archive):

@@ -69,7 +69,7 @@ async def setup_and_migrate():
         return {
             "posts": {r["post_id"]: dict(r) for r in await new.fetch("SELECT * FROM posts")},
             "revisions": [tuple(r) for r in await new.fetch(
-                "SELECT post_id, kind, content FROM post_revisions ORDER BY post_id, captured_at")],
+                "SELECT post_id, content FROM post_revisions ORDER BY post_id, captured_at")],
             "member7": dict(await new.fetchrow("SELECT * FROM members WHERE member_id = 7")),
             "channels": {r["chan_id"]: dict(r) for r in await new.fetch("SELECT * FROM channels")},
             "counts": [await new.fetchval(f"SELECT count(*) FROM {t}") for t in ("attachments", "embeds")],
@@ -86,14 +86,13 @@ def result():
 
 def test_only_tracked_posts_and_reply_targets(result):
     posts = result["posts"]
-    assert set(posts) == {100, 101, 103}
+    assert set(posts) == {100, 101}   # 102 is community chatter, 103 was deleted
     assert posts[100]["reason"] == "reply_target" and posts[101]["reason"] == "author"
     assert posts[101]["reply_to_id"] == 100 and posts[101]["edited_at"] is not None
 
 
-def test_delete_and_edit_history_converted(result):
-    assert result["posts"][103]["deleted_at"] is not None
-    assert result["revisions"] == [(101, "edit", "answer v2"), (103, "delete", "oops")]
+def test_edit_history_converted(result):
+    assert result["revisions"] == [(101, "answer v2")]
 
 
 def test_members_channels_and_children(result):

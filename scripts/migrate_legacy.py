@@ -13,7 +13,7 @@ Conversions from the legacy schema:
 - legacy edit revisions stored the content AFTER each edit; the new schema stores the
   content BEFORE it, so edit N becomes a revision holding version N-1 (the pre-first-edit
   original was never captured and is lost)
-- legacy delete revisions ('[[DELETED]]') -> posts.deleted_at + a 'delete' revision
+- posts deleted on Discord (legacy deleted flag or '[[DELETED]]' revision) are not migrated
 """
 import argparse
 import asyncio
@@ -26,6 +26,8 @@ from dotenv import load_dotenv
 
 TRUE = "IN ('1','t','true')"
 NUMERIC = "~ '^[0-9]+$'"
+NOT_DELETED = f"""NOT COALESCE(p.deleted::text, '0') {TRUE}
+    AND NOT EXISTS (SELECT 1 FROM post_revisions r WHERE r.post_id = p.post_id AND r.content = '[[DELETED]]')"""
 BATCH = 1000
 
 
@@ -48,11 +50,11 @@ async def migrate(old: asyncpg.Connection, new: asyncpg.Connection, dry_run: boo
     post_rows = await old.fetch(f"""
         WITH gm_posts AS (
             SELECT p.* FROM posts p JOIN members m ON m.member_id = p.author_id
-            WHERE COALESCE(m.is_gm::text, '0') {TRUE} AND p.post_id {NUMERIC}
+            WHERE COALESCE(m.is_gm::text, '0') {TRUE} AND p.post_id {NUMERIC} AND {NOT_DELETED}
         ), targets AS (
             SELECT p.* FROM posts p
             WHERE p.post_id IN (SELECT reply_to_id FROM gm_posts WHERE reply_to_id {NUMERIC})
-              AND p.post_id NOT IN (SELECT post_id FROM gm_posts)
+              AND p.post_id NOT IN (SELECT post_id FROM gm_posts) AND {NOT_DELETED}
         )
         SELECT *, 'author' AS reason FROM gm_posts
         UNION ALL
@@ -82,14 +84,11 @@ async def migrate(old: asyncpg.Connection, new: asyncpg.Connection, dry_run: boo
     print(f"Channels: {len(channel_rows)}, members: {len(member_rows)}, attachments: {len(attachment_rows)}, "
           f"embeds: {len(embed_rows)}, legacy revisions: {len(revision_rows)}")
 
-    # Legacy revisions -> (edits holding the previous version, delete timestamps)
-    edits, deleted_at = [], {}
+    # Legacy revisions hold the content after each edit; store the version before it instead
+    edits = []
     versions: dict[str, list] = {}
     for r in revision_rows:
-        if r["content"] == "[[DELETED]]":
-            deleted_at.setdefault(r["post_id"], ts(r["captured_ts"]))
-        else:
-            versions.setdefault(r["post_id"], []).append(r)
+        versions.setdefault(r["post_id"], []).append(r)
     for pid, vs in versions.items():
         for prev, cur in zip(vs, vs[1:]):
             edits.append((int(pid), prev["content"] or "", ts(cur["captured_ts"])))
@@ -122,13 +121,11 @@ async def migrate(old: asyncpg.Connection, new: asyncpg.Connection, dry_run: boo
 
         await batched(new, """
             INSERT INTO posts (post_id, chan_id, author_id, content, created_at, edited_at,
-                               deleted_at, reply_to_id, reason, pinned)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                               reply_to_id, reason, pinned)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             ON CONFLICT (post_id) DO NOTHING
         """, [(int(p["post_id"]), int(p["chan_id"]), int(p["author_id"]), p["content"] or "",
                ts(p["created_ts"]), ts(p["edited_ts"]),
-               deleted_at.get(p["post_id"]) or (datetime.now(timezone.utc)
-                                               if str(p["deleted"]).lower() in ("1", "t", "true") else None),
                int(p["reply_to_id"]) if p["reply_to_id"] and p["reply_to_id"].isdigit() else None,
                p["reason"], bool(p["pinned"]))
               for p in post_rows])
@@ -145,13 +142,8 @@ async def migrate(old: asyncpg.Connection, new: asyncpg.Connection, dry_run: boo
         await new.execute("DELETE FROM post_revisions WHERE post_id = ANY($1::bigint[])", migrated)
         await batched(new, "INSERT INTO embeds (post_id, data) VALUES ($1, $2::jsonb)",
                       [(int(e["post_id"]), e["data_json"]) for e in embed_rows if e["data_json"]])
-        await batched(new, "INSERT INTO post_revisions (post_id, kind, content, captured_at) VALUES ($1, 'edit', $2, $3)",
+        await batched(new, "INSERT INTO post_revisions (post_id, content, captured_at) VALUES ($1, $2, $3)",
                       edits)
-        await batched(new, """
-            INSERT INTO post_revisions (post_id, kind, content, captured_at)
-            SELECT post_id, 'delete', content, deleted_at FROM posts
-            WHERE post_id = ANY($1::bigint[]) AND deleted_at IS NOT NULL
-        """, [(migrated,)])
     print("Migration complete.")
 
 

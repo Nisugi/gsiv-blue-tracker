@@ -7,7 +7,7 @@
     <h1>Surprise: everything stored</h1>
     <a class="nav-link" href="{{ url_for('index') }}">Back to {{ label }} posts</a>
   </div>
-  <p class="muted">Every stored message, including deleted posts and the messages {{ label }}s replied to.</p>
+  <p class="muted">Every stored message, including the messages {{ label }}s replied to.</p>
   <form id="search-form" class="search-form" autocomplete="off">
     <div class="search-top">
       <input type="search" id="q" name="q" placeholder="Search everything...">
@@ -19,7 +19,6 @@
     <div class="search-bottom">
       <select id="authors" multiple data-placeholder="Anyone"></select>
       <select id="channels" multiple data-placeholder="All channels"></select>
-      <label class="check"><input type="checkbox" id="deleted"> Deleted only</label>
       <label class="check"><input type="checkbox" id="all_time"> All time</label>
     </div>
     <div class="search-help">

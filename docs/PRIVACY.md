@@ -11,7 +11,7 @@ The Bot only reads channels that the server's administrators have granted it. Wi
 - **Posts by tracked authors.** Tracked authors are members holding staff roles chosen by the server's administrators, or members listed individually in the Bot's configuration. For each post: message content, attachment names and links, embeds, the channel, timestamps, whether it is pinned, and the ID of the message it replies to.
 - **The message a tracked post replies to.** When a staff member replies to a message, that one message is stored with the same details, so the reply makes sense in context. This can include a message by any member.
 - **Author details for stored messages:** Discord user ID, username, display name, and avatar link.
-- **Edits and deletions of stored messages:** the earlier content and the time of the change.
+- **Edits of stored messages:** the earlier content and the time of the edit.
 - **Channel details:** IDs, names, topics, and the channel and category structure.
 
 The Bot does **not** store any other messages. It doesn't read direct messages, use the server member list, track presence or activity, or collect voice data. It does not use cookies or analytics. Our web server may keep standard access logs (IP address, time, page requested) for security and troubleshooting.
@@ -22,11 +22,13 @@ The data is used only to run the Archive: a public website where people can sear
 
 ## Who can see it
 
-The Archive is public. Posts in channels the Operator has marked hidden are stored but not shown. Deleted messages are not shown in normal search results. Their earlier content is kept in the edit and deletion history.
+The Archive is public. Posts in channels the Operator has marked hidden are stored but not shown.
+
+**Deleted messages are deleted.** When a stored message is deleted on Discord, the Bot removes it from the Archive, together with its edit history, attachments and embeds.
 
 ## Storage and retention
 
-Data is stored in a PostgreSQL database on a server operated by the Operator, with regular backups. It is kept for as long as the Archive runs, unless removed under the next section.
+Data is stored in a PostgreSQL database on a server operated by the Operator. It is kept for as long as the Archive runs, unless the message is deleted on Discord or removed under the next section. Backups are kept for a limited time and older ones are overwritten, so removed data disappears from backups as they rotate.
 
 ## Your choices
 

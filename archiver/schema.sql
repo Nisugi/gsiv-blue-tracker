@@ -29,7 +29,6 @@ CREATE TABLE IF NOT EXISTS posts (
     content      TEXT NOT NULL DEFAULT '',
     created_at   TIMESTAMPTZ NOT NULL,
     edited_at    TIMESTAMPTZ,
-    deleted_at   TIMESTAMPTZ,
     reply_to_id  BIGINT,
     reason       TEXT NOT NULL CHECK (reason IN ('author', 'reply_target')),
     pinned       BOOLEAN NOT NULL DEFAULT FALSE,
@@ -39,8 +38,7 @@ CREATE TABLE IF NOT EXISTS posts (
 CREATE TABLE IF NOT EXISTS post_revisions (
     rev_id       BIGSERIAL PRIMARY KEY,
     post_id      BIGINT NOT NULL REFERENCES posts(post_id) ON DELETE CASCADE,
-    kind         TEXT NOT NULL CHECK (kind IN ('edit', 'delete')),
-    content      TEXT,                      -- content before the change
+    content      TEXT,                      -- content before the edit
     captured_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -76,9 +74,9 @@ CREATE INDEX IF NOT EXISTS idx_posts_tsv         ON posts USING gin (tsv);
 CREATE INDEX IF NOT EXISTS idx_revisions_post    ON post_revisions (post_id);
 CREATE INDEX IF NOT EXISTS idx_channels_parent   ON channels (parent_id);
 
--- Posts shown in the viewer by default: by tracked authors, not deleted
+-- Posts shown in the viewer by default: by tracked authors (reply targets are context only).
+-- Deleted messages are removed outright, together with their revisions and attachments.
 CREATE OR REPLACE VIEW visible_posts AS
 SELECT p.*
 FROM posts p
-WHERE p.deleted_at IS NULL
-  AND p.reason = 'author';
+WHERE p.reason = 'author';

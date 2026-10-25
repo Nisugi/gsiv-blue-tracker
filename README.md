@@ -4,7 +4,7 @@ A read-only Discord bot that archives posts by chosen authors, picked by role or
 
 It works on any server. Everything server-specific lives in one TOML file, such as `config.gemstone.toml` for the GemStone IV GM archive.
 
-- **What's stored:** posts by tracked authors, the message each one replies to (one level), and edits and deletes of stored posts. Nothing else.
+- **What's stored:** posts by tracked authors, the message each one replies to (one level), and edits of stored posts. A message deleted on Discord is deleted from the archive too. Nothing else.
 - **What the bot sees:** only the channels the server's admins grant it. `[channels] exclude` blacklists more on top of that.
 - **Permissions:** View Channels and Read Message History. It never posts.
 

@@ -25,10 +25,10 @@ HIDDEN_FILTER = """
 
 POST_COLUMNS = f"""
     p.post_id, p.chan_id, p.author_id, p.content, p.created_at, p.edited_at,
-    p.deleted_at, p.reply_to_id, p.reason, p.pinned,
+    p.reply_to_id, p.reason, p.pinned,
     c.name AS channel_name, c.parent_id AS channel_parent_id,
     {AUTHOR_NAME} AS author_name, m.avatar_url, COALESCE(m.is_tracked, FALSE) AS is_tracked,
-    (SELECT count(*) FROM post_revisions r WHERE r.post_id = p.post_id AND r.kind = 'edit') AS edit_count,
+    (SELECT count(*) FROM post_revisions r WHERE r.post_id = p.post_id) AS edit_count,
     (SELECT COALESCE(jsonb_agg(jsonb_build_object(
             'id', a.attach_id::text, 'filename', a.filename, 'url', a.url,
             'content_type', a.content_type, 'width', a.width, 'height', a.height)
@@ -54,8 +54,7 @@ class SearchFilters:
     sort_asc: bool = False
     page: int = 1
     per_page: int = PER_PAGE
-    all_posts: bool = False        # surprise mode: every stored post, including deleted
-    deleted_only: bool = False
+    all_posts: bool = False        # surprise mode: every stored post, including reply targets
 
     @property
     def broad(self) -> bool:
@@ -91,8 +90,6 @@ def build_search_sql(f: SearchFilters, hidden_channels, now: datetime | None = N
     if f.date_to:
         where.append("p.created_at < %(date_to)s")
         params["date_to"] = f.date_to
-    if f.deleted_only:
-        where.append("p.deleted_at IS NOT NULL")
 
     source = "posts" if f.all_posts else "visible_posts"
     where_sql = " AND ".join(f"({w.strip()})" for w in where)
@@ -138,7 +135,6 @@ def serialize_post(row: dict, guild_id: int) -> dict:
         "content": row.get("content") or "",
         "created_at": _iso(row["created_at"]),
         "edited_at": _iso(row.get("edited_at")),
-        "deleted_at": _iso(row.get("deleted_at")),
         "reason": row.get("reason"),
         "pinned": bool(row.get("pinned")),
         "edit_count": int(row.get("edit_count") or 0),
@@ -203,7 +199,7 @@ class Archive:
         if not ids:
             return
         rows = self._all(f"""
-            SELECT p.post_id, p.chan_id, p.author_id, p.content, p.created_at, p.deleted_at,
+            SELECT p.post_id, p.chan_id, p.author_id, p.content, p.created_at,
                    {AUTHOR_NAME} AS author_name, COALESCE(m.is_tracked, FALSE) AS is_tracked
             FROM posts p {POST_JOINS}
             WHERE p.post_id = ANY(%(ids)s::bigint[]) AND {HIDDEN_FILTER}
@@ -220,7 +216,6 @@ class Archive:
                     "is_tracked": bool(t["is_tracked"]),
                     "content": t["content"] or "",
                     "created_at": _iso(t["created_at"]),
-                    "deleted": t["deleted_at"] is not None,
                     "jump_url": f"https://discord.com/channels/{self.settings.guild_id}/{t['chan_id']}/{t['post_id']}",
                 }
 
@@ -241,10 +236,10 @@ class Archive:
         if not self.get_post(post_id):
             return None
         rows = self._all("""
-            SELECT rev_id, kind, content, captured_at FROM post_revisions
+            SELECT rev_id, content, captured_at FROM post_revisions
             WHERE post_id = %(id)s ORDER BY captured_at, rev_id
         """, {"id": post_id})
-        return [{"id": str(r["rev_id"]), "kind": r["kind"], "content": r["content"],
+        return [{"id": str(r["rev_id"]), "content": r["content"],
                  "captured_at": _iso(r["captured_at"])} for r in rows]
 
     # -- lists ---------------------------------------------------------------

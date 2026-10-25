@@ -2,7 +2,7 @@
 
 document.addEventListener("DOMContentLoaded", async () => {
   const { fetchJSON, searchPage } = Archive;
-  const page = searchPage({ endpoint: "/api/surprise_search", fields: ["q", "date_from", "date_to"], checkboxes: ["deleted", "all_time"] });
+  const page = searchPage({ endpoint: "/api/surprise_search", fields: ["q", "date_from", "date_to"], checkboxes: ["all_time"] });
   const [members, channels] = await Promise.all([
     fetchJSON("/api/members").catch(() => []),
     fetchJSON("/api/channels").catch(() => []),

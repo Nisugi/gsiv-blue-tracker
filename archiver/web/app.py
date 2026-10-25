@@ -97,7 +97,6 @@ def filters_from_args(args, surprise: bool = False) -> SearchFilters:
         page=_int(args.get("page"), 1, 1, 10_000),
         per_page=_int(args.get("per_page"), PER_PAGE, 1, MAX_PER_PAGE),
         all_posts=surprise,
-        deleted_only=surprise and _flag(args.get("deleted", "0")),
     )
 
 

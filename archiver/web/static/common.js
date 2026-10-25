@@ -41,16 +41,15 @@ const Archive = (() => {
     if (!r) return "";
     return `<a class="reply-context${r.is_tracked ? " tracked" : ""}" href="${escapeHtml(r.jump_url)}" target="_blank" rel="noopener">
       <span class="reply-author">${escapeHtml(r.author_name)}</span>
-      <span class="reply-text">${escapeHtml((r.content || "").slice(0, 300))}${r.deleted ? " (deleted)" : ""}</span></a>`;
+      <span class="reply-text">${escapeHtml((r.content || "").slice(0, 300))}</span></a>`;
   }
 
   function renderPost(p) {
     const el = document.createElement("article");
-    el.className = "post" + (p.deleted_at ? " deleted" : "") + (p.reason === "reply_target" ? " context-only" : "");
+    el.className = "post" + (p.reason === "reply_target" ? " context-only" : "");
     el.dataset.id = p.id;
     const badges = [
       p.is_tracked ? `<span class="badge">${escapeHtml(SITE.label)}</span>` : "",
-      p.deleted_at ? '<span class="badge danger">deleted</span>' : "",
       p.reason === "reply_target" ? '<span class="badge muted">reply context</span>' : "",
       p.pinned ? '<span class="badge muted">pinned</span>' : "",
     ].join("");
@@ -82,7 +81,7 @@ const Archive = (() => {
     try {
       const revs = await fetchJSON(`/api/posts/${id}/revisions`);
       box.innerHTML = revs.length ? revs.map((r) => `
-        <div class="revision"><div class="muted">${r.kind === "delete" ? "Before deletion" : "Before edit"}, captured ${escapeHtml(formatDate(r.captured_at))}</div>
+        <div class="revision"><div class="muted">Before edit, captured ${escapeHtml(formatDate(r.captured_at))}</div>
         <div class="content">${formatContent(r.content || "")}</div></div>`).join("") : "No earlier versions stored.";
     } catch (e) {
       box.textContent = "Could not load history.";
