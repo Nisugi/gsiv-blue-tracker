@@ -13,7 +13,7 @@ The Bot only reads. It does not post, react, moderate, or take any other action 
 ## Adding the Bot
 
 - Only add the Bot to a server you administer, or with the administrators' permission.
-- The Bot is configured for one specific server. If it is added anywhere else, it leaves automatically and stores nothing.
+- The Bot is configured for one specific server. If it is added anywhere else, it ignores that server and stores nothing from it.
 - Administrators control what the Bot can see through normal channel permissions, and can remove it at any time.
 
 ## Using the Archive

@@ -17,7 +17,7 @@ It works on any server. Everything server-specific lives in one TOML file, such 
 1. Go to the [Developer Portal](https://discord.com/developers/applications), create an application, and open **Bot**.
 2. Reset and copy the **token**.
 3. Turn on **Message Content Intent**. Leave the Server Members and Presence intents off.
-4. Under **Installation**, choose **Guild Install** only, set the Install Link to **Discord Provided Link**, and give it scope `bot` with **View Channels** and **Read Message History**. Leave **Public Bot** on; verification requires it. The bot leaves any server that isn't in its config.
+4. Under **Installation**, choose **Guild Install** only, set the Install Link to **Discord Provided Link**, and give it scope `bot` with **View Channels** and **Read Message History**. Leave **Public Bot** on; verification requires it. The bot ignores any server other than the one in its config and stores nothing from it.
 5. Under **OAuth2 → URL Generator**, tick scope `bot` with the permissions **View Channels** and **Read Message History**. A server admin opens that URL to invite the bot.
 
 ### 2. Install

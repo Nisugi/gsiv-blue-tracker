@@ -44,14 +44,16 @@ class ArchiverClient(discord.Client):
 
     async def on_ready(self):
         log.info("Logged in as %s (%s)", self.user, self.user.id)
+        # Other servers are ignored (the tracker drops their messages), never left: a config
+        # mistake shouldn't silently remove the bot from the server it was meant for
         for g in self.guilds:
             if g.id != self.settings.guild_id:
-                log.warning("Leaving non-configured guild %s (%s)", g.name, g.id)
-                await g.leave()
+                log.warning("Ignoring guild %s (%s): not the configured guild", g.name, g.id)
 
         guild = self.guild
         if guild is None:
-            log.error("Bot is not in guild %s; invite it with the OAuth2 URL", self.settings.guild_id)
+            log.error("Bot is not in configured guild %s. Check ARCHIVER_CONFIG (in .env or the shell) "
+                      "and invite the bot with the OAuth2 URL", self.settings.guild_id)
             return
         log.info("Archiving %s", guild.name)
         self._log_roles(guild)
@@ -74,8 +76,8 @@ class ArchiverClient(discord.Client):
 
     async def on_guild_join(self, guild):
         if guild.id != self.settings.guild_id:
-            log.warning("Leaving non-configured guild %s (%s)", guild.name, guild.id)
-            await guild.leave()
+            log.warning("Added to guild %s (%s), which is not the configured guild; ignoring it",
+                        guild.name, guild.id)
 
     async def on_message(self, msg: discord.Message):
         if await self.tracker.handle(msg):
