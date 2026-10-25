@@ -41,10 +41,12 @@ INSERT INTO posts VALUES
   ('100','10','8','question?',1700000000000,NULL,FALSE,FALSE,NULL),   -- reply target
   ('101','10','7','answer v3',1700000001000,1700000300000,FALSE,FALSE,'100'),
   ('102','10','8','unrelated chatter',1700000002000,NULL,FALSE,FALSE,NULL),
-  ('103','10','7','oops',1700000003000,NULL,FALSE,TRUE,NULL);
+  ('103','10','7','oops',1700000003000,NULL,FALSE,TRUE,NULL),
+  ('104','10','7','preview noise',1700000004000,1700000005000,FALSE,FALSE,NULL);   -- edits that changed nothing
 INSERT INTO post_revisions (post_id, content, captured_ts, is_edit) VALUES
   ('101','answer v2',1700000100000,TRUE), ('101','answer v3',1700000300000,TRUE),
-  ('103','[[DELETED]]',1700000400000,TRUE);
+  ('103','[[DELETED]]',1700000400000,TRUE),
+  ('104','preview noise',1700000004500,TRUE), ('104','preview noise',1700000005000,TRUE);
 INSERT INTO attachments VALUES ('1001','101','a.png','https://cdn/a.png','image/png',1,1,1);
 INSERT INTO embeds (post_id, type, data_json) VALUES ('101','rich','{"title":"t"}');
 """
@@ -86,12 +88,13 @@ def result():
 
 def test_only_tracked_posts_and_reply_targets(result):
     posts = result["posts"]
-    assert set(posts) == {100, 101}   # 102 is community chatter, 103 was deleted
+    assert set(posts) == {100, 101, 104}   # 102 is community chatter, 103 was deleted
     assert posts[100]["reason"] == "reply_target" and posts[101]["reason"] == "author"
     assert posts[101]["reply_to_id"] == 100 and posts[101]["edited_at"] is not None
 
 
-def test_edit_history_converted(result):
+def test_edit_history_converted_without_no_op_edits(result):
+    # 101: v2 -> v3 is a real edit; 104's "edits" never changed the text
     assert result["revisions"] == [(101, "answer v2")]
 
 

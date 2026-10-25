@@ -84,14 +84,22 @@ async def migrate(old: asyncpg.Connection, new: asyncpg.Connection, dry_run: boo
     print(f"Channels: {len(channel_rows)}, members: {len(member_rows)}, attachments: {len(attachment_rows)}, "
           f"embeds: {len(embed_rows)}, legacy revisions: {len(revision_rows)}")
 
-    # Legacy revisions hold the content after each edit; store the version before it instead
-    edits = []
+    # Legacy revisions hold the content after each edit; store the version before it instead.
+    # The legacy bot also logged an "edit" whenever Discord updated a message (e.g. a link
+    # preview loading) with unchanged text, so consecutive identical versions are collapsed.
+    current = {p["post_id"]: (p["content"] or "", p["edited_ts"]) for p in post_rows}
     versions: dict[str, list] = {}
     for r in revision_rows:
-        versions.setdefault(r["post_id"], []).append(r)
+        versions.setdefault(r["post_id"], []).append((r["content"] or "", r["captured_ts"]))
+    edits = []
     for pid, vs in versions.items():
-        for prev, cur in zip(vs, vs[1:]):
-            edits.append((int(pid), prev["content"] or "", ts(cur["captured_ts"])))
+        chain = []
+        for content, captured in vs + [current[pid]]:
+            if not chain or content != chain[-1][0]:
+                chain.append((content, captured))
+        for (prev, prev_at), (_, replaced_at) in zip(chain, chain[1:]):
+            when = ts(replaced_at) or ts(prev_at) or datetime.now(timezone.utc)
+            edits.append((int(pid), prev, when))
 
     if dry_run:
         print("Dry run: nothing written.")
