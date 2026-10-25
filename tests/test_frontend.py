@@ -30,7 +30,14 @@ def test_html_is_escaped():
 def test_mentions_use_names():
     out = fmt("hey <@55> and <@!56>, see <#77>, ping <@&9>")
     assert "@Naijin" in out and "@unknown-user" in out and "@GameMaster" in out
-    assert '#patch-notes</a>' in out and "https://discord.com/channels/1000/77" in out
+    assert '#patch-notes</a>' in out and 'href="discord://-/channels/1000/77"' in out
+
+
+def test_app_url():
+    script = ("globalThis.SITE = {guildId: '1000'};\n" + COMMON_JS.read_text(encoding="utf-8")
+              + "\nprocess.stdout.write(Archive.appUrl('https://discord.com/channels/1/2/3'));")
+    out = subprocess.run([NODE, "-e", script], capture_output=True, text=True, check=True).stdout
+    assert out == "discord://-/channels/1/2/3"
 
 
 def test_emoji_and_timestamps():

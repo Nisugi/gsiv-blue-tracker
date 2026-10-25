@@ -42,13 +42,31 @@ const Archive = (() => {
     html = html.replace(/&lt;@&amp;(\d+)&gt;/g, (_, id) => `<span class="mention">@${name(names.roles, id, "unknown-role")}</span>`);
     html = html.replace(/&lt;#(\d+)&gt;/g, (_, id) => {
       const label = `#${name(names.channels, id, "unknown-channel")}`;
-      return `<a class="mention" href="https://discord.com/channels/${escapeHtml(SITE.guildId)}/${id}" target="_blank" rel="noopener">${label}</a>`;
+      return `<a class="mention" href="discord://-/channels/${escapeHtml(SITE.guildId)}/${id}">${label}</a>`;
     });
     html = html.replace(/&lt;(a?):(\w+):(\d+)&gt;/g, (_, animated, emoji, id) =>
       `<img class="emoji" src="https://cdn.discordapp.com/emojis/${id}.${animated ? "gif" : "webp"}?size=48" alt=":${emoji}:" title=":${emoji}:">`);
     html = html.replace(/&lt;t:(-?\d+)(?::([tTdDfFR]))?&gt;/g, (_, s, style) =>
       `<time class="mention">${escapeHtml(formatTimestamp(s, style))}</time>`);
     return html.replace(/\n/g, "<br>");
+  }
+
+  // discord:// opens the desktop app directly; the https link works pasted into any Discord chat
+  function appUrl(url) {
+    return String(url).replace(/^https:\/\/discord\.com\//, "discord://-/");
+  }
+
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Clipboard API needs https or localhost; fall back to a temporary textarea
+      const area = Object.assign(document.createElement("textarea"), { value: text });
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand("copy");
+      area.remove();
+    }
   }
 
   function formatDate(iso) {
@@ -68,7 +86,7 @@ const Archive = (() => {
 
   function renderReply(r, mentions) {
     if (!r) return "";
-    return `<a class="reply-context${r.is_tracked ? " tracked" : ""}" href="${escapeHtml(r.jump_url)}" target="_blank" rel="noopener">
+    return `<a class="reply-context${r.is_tracked ? " tracked" : ""}" href="${escapeHtml(appUrl(r.jump_url))}" title="Open in the Discord app">
       <span class="reply-author">${escapeHtml(r.author_name)}</span>
       <span class="reply-text">${formatContent((r.content || "").slice(0, 300), mentions)}</span></a>`;
   }
@@ -92,11 +110,20 @@ const Archive = (() => {
         <span class="channel">#${escapeHtml(p.channel)}</span>
         <span class="time" title="${escapeHtml(p.created_at)}">${escapeHtml(formatDate(p.created_at))}</span>
         ${edited}
-        <a class="jump" href="${escapeHtml(p.jump_url)}" target="_blank" rel="noopener">Jump to message</a>
+        <span class="jump">
+          <a href="${escapeHtml(appUrl(p.jump_url))}" title="Opens the Discord desktop app">Open in Discord</a>
+          <button type="button" class="link copy-link" title="Copy a link you can paste into Discord">Copy link</button>
+        </span>
       </div>
       <div class="content">${formatContent(p.content, p.mentions)}</div>
       ${renderAttachments(p.attachments)}
       <div class="revisions" hidden></div>`;
+    const copy = el.querySelector(".copy-link");
+    copy.addEventListener("click", async () => {
+      await copyText(p.jump_url);
+      copy.textContent = "Copied!";
+      setTimeout(() => { copy.textContent = "Copy link"; }, 1500);
+    });
     const btn = el.querySelector(".history");
     if (btn) btn.addEventListener("click", () => toggleRevisions(el, p.id, p.mentions));
     return el;
@@ -226,5 +253,5 @@ const Archive = (() => {
     };
   }
 
-  return { $, escapeHtml, formatContent, renderPost, fetchJSON, searchPage };
+  return { $, escapeHtml, formatContent, appUrl, renderPost, fetchJSON, searchPage };
 })();

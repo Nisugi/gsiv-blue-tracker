@@ -107,7 +107,7 @@ a.mention { text-decoration: none; }
 .post-header { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: 13px; margin-bottom: 6px; }
 .author { font-weight: 600; font-size: 14px; }
 .channel, .time { color: var(--muted); }
-.jump { margin-left: auto; font-size: 12px; }
+.jump { margin-left: auto; font-size: 12px; display: inline-flex; gap: 10px; }
 .badge {
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em;
   background: var(--accent); color: #fff; border-radius: 4px; padding: 1px 5px;
