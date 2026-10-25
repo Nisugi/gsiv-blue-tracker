@@ -1,0 +1,35 @@
+# Server configuration for the role-based Discord archiver.
+# Copy to config.toml (or point ARCHIVER_CONFIG at your file). Secrets go in .env, not here.
+# IDs: enable Developer Mode in Discord, then right-click a server, role, channel or user > Copy ID.
+
+[server]
+guild_id = 123456789012345678
+name = "My Server"
+label = "Staff"            # what tracked authors are called in the viewer
+
+[tracking]
+# Members holding any of these roles are archived. The bot prints all role IDs at startup.
+role_ids = []
+# Save the message each tracked post replies to (one level), for context
+save_reply_targets = true
+
+# Specific users to archive regardless of roles: id = display name
+# Also how to keep archiving someone who left the server (they no longer have roles).
+[tracking.users]
+# 123456789012345678 = "Alice"
+
+[channels]
+# Never archived (threads inside these too)
+exclude = []
+# Archived, but hidden from the public viewer
+hidden = []
+# Forums whose threads the crawler skips (live messages are still archived)
+skip_crawl = []
+
+# Shown first in the viewer channel list: id = display name
+[channels.featured]
+# 123456789012345678 = "announcements"
+
+[crawler]
+backfill_days = 7          # how far back a first crawl reaches
+request_pause = 1.5        # seconds between history pages

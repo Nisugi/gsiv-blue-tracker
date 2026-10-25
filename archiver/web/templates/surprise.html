@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ server_name }} Archive - Surprise{% endblock %}
+{% block scripts %}<script defer src="{{ url_for('static', filename='surprise.js') }}"></script>{% endblock %}
+{% block body %}
+<header class="header">
+  <div class="header-top">
+    <h1>Surprise: everything stored</h1>
+    <a class="nav-link" href="{{ url_for('index') }}">Back to {{ label }} posts</a>
+  </div>
+  <p class="muted">Every stored message, including deleted posts and the messages {{ label }}s replied to.</p>
+  <form id="search-form" class="search-form" autocomplete="off">
+    <div class="search-top">
+      <input type="search" id="q" name="q" placeholder="Search everything...">
+      <input type="date" id="date_from" title="From">
+      <input type="date" id="date_to" title="To">
+      <button type="submit" class="btn-primary">Search</button>
+      <button type="button" class="btn-secondary" id="reset">Reset</button>
+    </div>
+    <div class="search-bottom">
+      <select id="authors" multiple data-placeholder="Anyone"></select>
+      <select id="channels" multiple data-placeholder="All channels"></select>
+      <label class="check"><input type="checkbox" id="deleted"> Deleted only</label>
+      <label class="check"><input type="checkbox" id="all_time"> All time</label>
+    </div>
+    <div class="search-help">
+      Search syntax: word (any) | "exact phrase" | word + word (both) | -word (exclude) | /regex/i | combine multiple patterns.
+    </div>
+  </form>
+</header>
+<div id="info" class="info"></div>
+<main id="results" class="results"></main>
+<nav id="pager" class="pager"></nav>
+{% endblock %}

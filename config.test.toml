@@ -1,0 +1,24 @@
+# Test server configuration. Use a separate database from production.
+
+[server]
+guild_id = 1530856982007910441
+name = "Archiver Test"
+label = "GM"
+
+[tracking]
+# Fill in from the role list the bot prints at startup
+role_ids = []
+save_reply_targets = true
+
+[tracking.users]
+
+[channels]
+exclude = []
+hidden = []
+skip_crawl = []
+
+[channels.featured]
+
+[crawler]
+backfill_days = 30
+request_pause = 0.5

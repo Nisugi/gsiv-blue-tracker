@@ -1,0 +1,10 @@
+.env
+*.pass
+config.toml
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+*.dump
+backups/

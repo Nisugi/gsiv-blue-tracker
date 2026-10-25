@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block scripts %}<script defer src="{{ url_for('static', filename='index.js') }}"></script>{% endblock %}
+{% block body %}
+<header class="header">
+  <div class="header-top">
+    <h1>{{ server_name }} {{ label }} Tracker</h1>
+    <div class="stats-inline">
+      <div class="stat-chip"><div class="label">{{ label }} posts</div><div class="value" id="stat-posts">-</div></div>
+      <div class="stat-chip"><div class="label">{{ label }}s</div><div class="value" id="stat-authors">-</div></div>
+      <a class="nav-link" href="{{ url_for('surprise') }}">Surprise</a>
+    </div>
+  </div>
+  <form id="search-form" class="search-form" autocomplete="off">
+    <div class="search-top">
+      <input type="search" id="q" name="q" placeholder="Search {{ label }} posts...">
+      <input type="date" id="date_from" name="date_from" title="From">
+      <input type="date" id="date_to" name="date_to" title="To">
+      <button type="submit" class="btn-primary">Search</button>
+      <button type="button" class="btn-secondary" id="reset">Reset</button>
+    </div>
+    <div class="search-bottom">
+      <select id="authors" multiple data-placeholder="All {{ label }}s"></select>
+      <select id="channels" multiple data-placeholder="All channels"></select>
+      <select id="sort"><option value="desc">Newest first</option><option value="asc">Oldest first</option></select>
+      <label class="check"><input type="checkbox" id="all_time"> All time</label>
+      <label class="check"><input type="checkbox" id="live" checked> Live</label>
+    </div>
+    <div class="search-help">
+      <strong>Search syntax:</strong>
+      word (any word) | "exact phrase" | word + word (both required) | -word (exclude) | /regex/i (regex with flags) | combine multiple patterns
+    </div>
+  </form>
+</header>
+<div id="live-banner" class="live-banner" hidden></div>
+<div id="info" class="info"></div>
+<main id="results" class="results"></main>
+<nav id="pager" class="pager"></nav>
+{% endblock %}
