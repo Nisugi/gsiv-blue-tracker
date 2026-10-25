@@ -2,6 +2,8 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
+import re
+
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
@@ -11,9 +13,17 @@ MAX_RESULTS = 10_000
 PER_PAGE = 25
 MAX_PER_PAGE = 100
 BROAD_SEARCH_DAYS = 90
+REGEX_TIMEOUT_MS = 3000   # regex searches scan every post; fail fast instead of holding a connection
 THREAD_TYPES = ("public_thread", "private_thread", "news_thread")
 
 AUTHOR_NAME = "COALESCE(m.tracked_name, m.display_name, m.username, 'Unknown')"
+
+# Discord mention syntax in message content: <@123> or <@!123>, <#123>, <@&123>
+MENTION_PATTERNS = {
+    "users": re.compile(r"<@!?(\d+)>"),
+    "channels": re.compile(r"<#(\d+)>"),
+    "roles": re.compile(r"<@&(\d+)>"),
+}
 
 # A channel is hidden if it, its parent, or its grandparent (thread -> channel -> category)
 # is in hidden_channels. Expects aliases c (channel), pc (parent channel).
@@ -140,6 +150,7 @@ def serialize_post(row: dict, guild_id: int) -> dict:
         "attachments": row.get("attachments") or [],
         "reply_to_id": _str(row.get("reply_to_id")),
         "replied_to": None,
+        "mentions": {"users": {}, "channels": {}, "roles": {}},
         "jump_url": f"https://discord.com/channels/{guild_id}/{row['chan_id']}/{row['post_id']}",
     }
     return out
@@ -175,11 +186,14 @@ class Archive:
 
     def search(self, f: SearchFilters, now: datetime | None = None) -> dict:
         rows_sql, count_sql, params = build_search_sql(f, self.hidden, now)
-        with self.pool.connection() as conn:
+        with self.pool.connection() as conn, conn.transaction():
+            if f.query.regexes:
+                conn.execute(f"SET LOCAL statement_timeout = {REGEX_TIMEOUT_MS}")
             rows = conn.execute(rows_sql, params).fetchall() if params["limit"] else []
             total = conn.execute(count_sql, params).fetchone()["n"]
         posts = [serialize_post(r, self.settings.guild_id) for r in rows]
         self.attach_reply_context(posts)
+        self.attach_mentions(posts)
         capped = total > MAX_RESULTS
         total = min(total, MAX_RESULTS)
         return {
@@ -218,6 +232,35 @@ class Archive:
                     "jump_url": f"https://discord.com/channels/{self.settings.guild_id}/{t['chan_id']}/{t['post_id']}",
                 }
 
+    def attach_mentions(self, posts: list[dict]) -> None:
+        """Give each post a `mentions` map of {users, channels, roles} names for the IDs in its text."""
+        texts = {p["id"]: p["content"] + " " + ((p.get("replied_to") or {}).get("content") or "") for p in posts}
+        found = {key: set() for key in MENTION_PATTERNS}
+        for text in texts.values():
+            for key, pattern in MENTION_PATTERNS.items():
+                found[key].update(int(i) for i in pattern.findall(text))
+        if not any(found.values()):
+            for p in posts:
+                p["mentions"] = {"users": {}, "channels": {}, "roles": {}}
+            return
+        names = {"users": {}, "channels": {}, "roles": {}}
+        if found["users"]:
+            for r in self._all(f"SELECT m.member_id AS id, {AUTHOR_NAME} AS name FROM members m "
+                               "WHERE m.member_id = ANY(%(ids)s::bigint[])", {"ids": sorted(found["users"])}):
+                names["users"][str(r["id"])] = r["name"]
+        if found["channels"]:
+            for r in self._all("SELECT chan_id AS id, name FROM channels WHERE chan_id = ANY(%(ids)s::bigint[])",
+                               {"ids": sorted(found["channels"])}):
+                names["channels"][str(r["id"])] = r["name"]
+        if found["roles"]:
+            for r in self._all("SELECT role_id AS id, name FROM roles WHERE role_id = ANY(%(ids)s::bigint[])",
+                               {"ids": sorted(found["roles"])}):
+                names["roles"][str(r["id"])] = r["name"]
+        for p in posts:
+            text = texts[p["id"]]
+            p["mentions"] = {key: {i: names[key][i] for i in MENTION_PATTERNS[key].findall(text) if i in names[key]}
+                             for key in MENTION_PATTERNS}
+
     def get_post(self, post_id: int, visible_only: bool = False) -> dict | None:
         source = "visible_posts" if visible_only else "posts"
         row = self._one(f"""
@@ -228,6 +271,7 @@ class Archive:
             return None
         post = serialize_post(row, self.settings.guild_id)
         self.attach_reply_context([post])
+        self.attach_mentions([post])
         return post
 
     def revisions(self, post_id: int) -> list[dict] | None:

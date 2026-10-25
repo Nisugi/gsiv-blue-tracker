@@ -10,11 +10,12 @@ The Bot only reads channels that the server's administrators have granted it. Wi
 
 - **Posts by tracked authors.** Tracked authors are members holding staff roles chosen by the server's administrators, or members listed individually in the Bot's configuration. For each post: message content, attachment names and links, embeds, the channel, timestamps, whether it is pinned, and the ID of the message it replies to.
 - **The message a tracked post replies to.** When a staff member replies to a message, that one message is stored with the same details, so the reply makes sense in context. This can include a message by any member.
-- **Author details for stored messages:** Discord user ID, username, display name, and avatar link.
+- **Author details for stored messages:** Discord user ID, username, display name, and avatar link. The same details are stored for anyone @mentioned in a stored message, so the mention can be shown by name.
+- **Server role names and colors,** so role mentions can be shown by name.
 - **Edits of stored messages:** the earlier content and the time of the edit.
 - **Channel details:** IDs, names, topics, and the channel and category structure.
 
-The Bot does **not** store any other messages. It doesn't read direct messages, use the server member list, track presence or activity, or collect voice data. It does not use cookies or analytics. Our web server may keep standard access logs (IP address, time, page requested) for security and troubleshooting.
+The Bot does **not** store any other messages. It doesn't read direct messages, use the server member list, track presence or activity, or collect voice data. It does not use cookies or analytics. The Archive's pages load avatars, attachments and custom emoji images from Discord's servers, as Discord itself does. Our web server may keep standard access logs (IP address, time, page requested) for security and troubleshooting.
 
 ## How we use it
 

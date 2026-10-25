@@ -59,6 +59,14 @@ CREATE TABLE IF NOT EXISTS embeds (
     data      JSONB NOT NULL
 );
 
+-- Server roles, so role mentions in stored posts can be shown by name
+CREATE TABLE IF NOT EXISTS roles (
+    role_id     BIGINT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    color       INTEGER NOT NULL DEFAULT 0,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Newest message the crawler has seen per channel/thread; crawls resume after it
 CREATE TABLE IF NOT EXISTS crawl_state (
     chan_id       BIGINT PRIMARY KEY,

@@ -55,6 +55,7 @@ class ArchiverClient(discord.Client):
             return
         log.info("Archiving %s", guild.name)
         self._log_roles(guild)
+        await self.store.sync_roles(guild.roles)
 
         # on_ready fires again after reconnects; crawl only once per process
         if self.crawl_on_ready and self._crawl_task is None:
@@ -97,6 +98,18 @@ class ArchiverClient(discord.Client):
             return
         for message_id in payload.message_ids:
             await self.store.record_delete(message_id)
+
+    async def on_guild_role_create(self, role):
+        if role.guild.id == self.settings.guild_id:
+            await self.store.upsert_role(role)
+
+    async def on_guild_role_update(self, before, after):
+        if after.guild.id == self.settings.guild_id:
+            await self.store.upsert_role(after)
+
+    async def on_guild_role_delete(self, role):
+        if role.guild.id == self.settings.guild_id:
+            await self.store.delete_role(role.id)
 
     async def on_guild_channel_update(self, before, after):
         if after.guild.id == self.settings.guild_id:

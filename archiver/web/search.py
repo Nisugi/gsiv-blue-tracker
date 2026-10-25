@@ -18,6 +18,14 @@ _PHRASE = re.compile(r'"([^"]+)"')
 _AND = re.compile(r'[^\s+"]+(?:\s*\+\s*[^\s+"]+)+')
 _EXCLUDED_WORD = re.compile(r'(?<!\S)-([^\s"]+)')
 
+# Regexes can't use the search index and run against every post, so keep them small
+MAX_REGEXES = 3
+MAX_REGEX_LENGTH = 100
+
+
+class QueryError(ValueError):
+    """A search the user typed that we refuse to run."""
+
 
 @dataclass
 class ParsedQuery:
@@ -51,6 +59,10 @@ def parse_search_query(query: str) -> ParsedQuery:
         [t for t in (p.strip() for p in m.group(0).split("+")) if t]))
     take(_EXCLUDED_WORD, lambda m: parsed.excluded.append(m.group(1)))
 
+    if len(parsed.regexes) > MAX_REGEXES:
+        raise QueryError(f"At most {MAX_REGEXES} regular expressions per search")
+    if any(len(pattern) > MAX_REGEX_LENGTH for pattern, _ in parsed.regexes):
+        raise QueryError(f"Regular expressions are limited to {MAX_REGEX_LENGTH} characters")
     parsed.words = [w for w in rest.split() if w not in ("+", "-")]
     parsed.phrases = [p for p in parsed.phrases if p]
     return parsed

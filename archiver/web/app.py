@@ -3,6 +3,7 @@
 Run: flask --app archiver.web.app run --port 8080  (Flask finds create_app)
 """
 import logging
+import os
 import queue
 import threading
 import time
@@ -13,7 +14,7 @@ from flask import Flask, Response, abort, g, jsonify, render_template, request, 
 
 from .live import Broadcaster
 from .queries import MAX_PER_PAGE, PER_PAGE, Archive, SearchFilters
-from .search import parse_search_query
+from .search import QueryError, parse_search_query
 
 log = logging.getLogger("archiver.web")
 
@@ -21,6 +22,9 @@ SLOW_REQUEST_SECONDS = 2.0
 SEARCH_TTL = 60
 LIST_TTL = 300
 HEARTBEAT_SECONDS = 25
+# Each open live stream holds one server thread. Keep this below the server's thread count
+# (see README: gunicorn --threads) so searches always have threads left.
+MAX_STREAM_CLIENTS = int(os.getenv("MAX_STREAM_CLIENTS", "40"))
 
 
 class TTLCache:
@@ -146,6 +150,10 @@ def create_app(settings=None, archive=None, broadcaster=None) -> Flask:
                             response.status_code, elapsed)
         return response
 
+    @app.errorhandler(QueryError)
+    def bad_query(e):
+        return jsonify(error=str(e)), 400
+
     @app.errorhandler(psycopg.errors.InvalidRegularExpression)
     def bad_regex(e):
         return jsonify(error="Invalid regular expression", detail=str(e).splitlines()[0]), 400
@@ -215,6 +223,9 @@ def create_app(settings=None, archive=None, broadcaster=None) -> Flask:
 
     @app.get("/stream")
     def stream():
+        if broadcaster.client_count >= MAX_STREAM_CLIENTS:
+            # 204 tells EventSource to stop reconnecting; the page works without live updates
+            return Response(status=204)
         q = broadcaster.subscribe()
 
         def events():

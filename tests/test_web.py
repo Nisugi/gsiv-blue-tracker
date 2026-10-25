@@ -301,3 +301,33 @@ def test_broadcaster_loads_once_and_fans_out(monkeypatch):
     assert q1.empty() and q2.empty()
     b.unsubscribe(q1)
     assert b.client_count == 1
+
+
+# -- limits ----------------------------------------------------------------------------
+
+def test_regex_limits():
+    from archiver.web.search import MAX_REGEX_LENGTH, QueryError
+    with pytest.raises(QueryError):
+        parse_search_query("/a/ /b/ /c/ /d/")
+    with pytest.raises(QueryError):
+        parse_search_query("/" + "a" * (MAX_REGEX_LENGTH + 1) + "/")
+    assert parse_search_query("/a/ /b/ /c/").regexes
+
+
+def test_regex_limit_returns_400(client_and_archive):
+    client, archive = client_and_archive
+    r = client.get("/api/search?q=" + "/x/+" * 4)
+    assert r.status_code == 400 and "regular expressions" in r.get_json()["error"]
+    assert archive.searches == []
+
+
+def test_stream_refuses_past_the_cap(client_and_archive, monkeypatch):
+    client, _ = client_and_archive
+    monkeypatch.setattr(FakeBroadcaster, "client_count", 10_000)
+    r = client.get("/stream")
+    assert r.status_code == 204
+
+
+def test_posts_carry_empty_mention_maps():
+    row = dict(post_id=1, chan_id=2, author_id=3, content="hi", created_at=datetime(2026, 1, 1, tzinfo=timezone.utc))
+    assert serialize_post(row, 9)["mentions"] == {"users": {}, "channels": {}, "roles": {}}

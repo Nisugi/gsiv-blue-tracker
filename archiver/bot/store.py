@@ -71,6 +71,25 @@ class Store:
             list(users.items()),
         )
 
+    async def sync_roles(self, roles):
+        """Replace the stored role list with the guild's current roles."""
+        async with self.pool.acquire() as conn, conn.transaction():
+            await conn.execute("DELETE FROM roles WHERE role_id <> ALL($1::bigint[])", [r.id for r in roles])
+            for role in roles:
+                await self.upsert_role(role, conn=conn)
+
+    async def upsert_role(self, role, *, conn=None):
+        await (conn or self.pool).execute(
+            """
+            INSERT INTO roles (role_id, name, color) VALUES ($1, $2, $3)
+            ON CONFLICT (role_id) DO UPDATE SET name = EXCLUDED.name, color = EXCLUDED.color, updated_at = now()
+            """,
+            role.id, role.name, role.color.value,
+        )
+
+    async def delete_role(self, role_id: int):
+        await self.pool.execute("DELETE FROM roles WHERE role_id = $1", role_id)
+
     async def tracked_ids(self) -> set[int]:
         rows = await self.pool.fetch("SELECT member_id FROM members WHERE is_tracked")
         return {r["member_id"] for r in rows}
@@ -86,6 +105,12 @@ class Store:
         async with self.pool.acquire() as conn, conn.transaction():
             await self.upsert_channel(msg.channel, conn=conn)
             await self.upsert_member(msg.author, tracked=author_tracked, conn=conn)
+            # Names for mentions in the content; the viewer shows these instead of raw IDs
+            for user in msg.mentions:
+                if user.id != msg.author.id:
+                    await self.upsert_member(user, conn=conn)
+            for channel in msg.channel_mentions:
+                await self.upsert_channel(channel, conn=conn)
             await conn.execute(
                 """
                 INSERT INTO posts (post_id, chan_id, author_id, content, created_at, edited_at,

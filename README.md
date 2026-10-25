@@ -43,8 +43,18 @@ Anyone who has once been tracked stays tracked, so their posts keep being archiv
 python -m archiver.bot                    # live capture + catch-up crawl
 python -m archiver.bot --no-crawl         # live capture only
 python -m archiver.bot --backfill-days 30 # first crawl reaches 30 days back
-flask --app archiver.web.app run --port 8080
+flask --app archiver.web.app run --port 8080   # development only
 ```
+
+### Viewer in production
+
+Use a threaded server. Every browser with live updates on keeps a server thread open for as long as the tab is open, so a server with one thread per worker (gunicorn's default) stops answering searches after a few visitors:
+
+```bash
+gunicorn -k gthread --workers 2 --threads 64 --bind 127.0.0.1:8080 "archiver.web.app:create_app()"
+```
+
+Each worker accepts up to `MAX_STREAM_CLIENTS` live streams (env, default 40) and leaves the remaining threads for searches. Beyond that, extra browsers simply don't get live updates. Keep `MAX_STREAM_CLIENTS` below `--threads`. If you run behind nginx, turn off buffering for `/stream` (the viewer already sends `X-Accel-Buffering: no`).
 
 The crawler resumes each channel and thread after the newest message it has already read, so restarts and outages leave no gaps. `backfill_days` only limits how far back a channel goes the first time it's crawled.
 

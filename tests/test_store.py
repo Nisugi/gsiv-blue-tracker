@@ -25,9 +25,13 @@ def fake_message(mid, content="hello", author_id=7, chan_id=10, reply_to=None):
     attachment = NS(id=mid * 10, filename="a.png", url="https://cdn/a.png", content_type="image/png",
                     size=10, width=1, height=1)
     embed = NS(to_dict=lambda: {"title": "t"})
+    mentioned = NS(id=55, name="mentioned", display_name="Mentioned Person", display_avatar=None)
+    mentioned_chan = NS(id=77, name="patch-notes", type=discord.ChannelType.text, topic=None, position=2,
+                        category_id=5)
     return NS(id=mid, channel=chan, author=author, content=content, created_at=T0, edited_at=None,
               reference=NS(message_id=reply_to) if reply_to else None, pinned=False,
-              attachments=[attachment], embeds=[embed])
+              attachments=[attachment], embeds=[embed], mentions=[mentioned, author],
+              channel_mentions=[mentioned_chan])
 
 
 def run(coro):
@@ -59,6 +63,27 @@ def test_save_and_refresh_post():
         assert await s.pool.fetchval("SELECT count(*) FROM embeds WHERE post_id = 1") == 1
         assert await s.pool.fetchval("SELECT parent_id FROM channels WHERE chan_id = 10") == 5
         assert await s.post_exists(1) and not await s.post_exists(2)
+    run(with_store(body))
+
+
+def test_mentioned_users_and_channels_get_names():
+    async def body(s):
+        await s.save_post(fake_message(1), "author", author_tracked=True)
+        row = await s.pool.fetchrow("SELECT display_name, is_tracked FROM members WHERE member_id = 55")
+        assert row["display_name"] == "Mentioned Person" and not row["is_tracked"]
+        assert await s.pool.fetchval("SELECT name FROM channels WHERE chan_id = 77") == "patch-notes"
+    run(with_store(body))
+
+
+def test_roles_sync_replaces_list():
+    async def body(s):
+        role = lambda i, n: NS(id=i, name=n, color=NS(value=0))
+        await s.sync_roles([role(1, "GameMaster"), role(2, "Old")])
+        await s.sync_roles([role(1, "Senior GM"), role(3, "New")])
+        rows = await s.pool.fetch("SELECT role_id, name FROM roles ORDER BY role_id")
+        assert [(r["role_id"], r["name"]) for r in rows] == [(1, "Senior GM"), (3, "New")]
+        await s.delete_role(3)
+        assert await s.pool.fetchval("SELECT count(*) FROM roles") == 1
     run(with_store(body))
 
 

@@ -9,16 +9,45 @@ const Archive = (() => {
     return String(text ?? "").replace(/[&<>"']/g, (c) => ESCAPES[c]);
   }
 
-  // Minimal Discord-flavoured formatting on already-escaped text.
-  function formatContent(text) {
+  const TIME_STYLES = {
+    t: { timeStyle: "short" }, T: { timeStyle: "medium" }, d: { dateStyle: "short" }, D: { dateStyle: "long" },
+    f: { dateStyle: "long", timeStyle: "short" }, F: { dateStyle: "full", timeStyle: "short" },
+  };
+
+  function formatTimestamp(seconds, style) {
+    const date = new Date(Number(seconds) * 1000);
+    if (style === "R") {
+      const days = Math.round((date - Date.now()) / 86400000);
+      return new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }).format(days, "day");
+    }
+    return date.toLocaleString(undefined, TIME_STYLES[style] || TIME_STYLES.f);
+  }
+
+  // Discord-flavoured formatting on already-escaped text. `mentions` maps IDs to names.
+  function formatContent(text, mentions) {
+    const names = mentions || { users: {}, channels: {}, roles: {} };
+    const name = (map, id, fallback) => escapeHtml(map[id] || fallback);
     let html = escapeHtml(text);
-    html = html.replace(/```([\s\S]*?)```/g, (_, code) => `<pre>${code}</pre>`);
+    html = html.replace(/```(?:[a-z0-9]+\n)?([\s\S]*?)```/g, (_, code) => `<pre>${code}</pre>`);
     html = html.replace(/`([^`\n]+)`/g, "<code>$1</code>");
     html = html.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+    html = html.replace(/__([^_\n]+)__/g, "<u>$1</u>");
     html = html.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
-    html = html.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
-    html = html.replace(/&lt;@!?(\d+)&gt;/g, '<span class="mention">@user</span>');
-    html = html.replace(/&lt;#(\d+)&gt;/g, '<span class="mention">#channel</span>');
+    html = html.replace(/~~([^~\n]+)~~/g, "<s>$1</s>");
+    html = html.replace(/\|\|([^|\n]+)\|\|/g, '<span class="spoiler" title="Spoiler">$1</span>');
+    html = html.replace(/^&gt; (.*)$/gm, '<span class="quote">$1</span>');
+    // Stop at escaped brackets/quotes so Discord's <https://...> (no-preview) form links cleanly
+    html = html.replace(/(https?:\/\/(?:(?!&gt;|&lt;|&quot;)[^\s<])+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+    html = html.replace(/&lt;@!?(\d+)&gt;/g, (_, id) => `<span class="mention">@${name(names.users, id, "unknown-user")}</span>`);
+    html = html.replace(/&lt;@&amp;(\d+)&gt;/g, (_, id) => `<span class="mention">@${name(names.roles, id, "unknown-role")}</span>`);
+    html = html.replace(/&lt;#(\d+)&gt;/g, (_, id) => {
+      const label = `#${name(names.channels, id, "unknown-channel")}`;
+      return `<a class="mention" href="https://discord.com/channels/${escapeHtml(SITE.guildId)}/${id}" target="_blank" rel="noopener">${label}</a>`;
+    });
+    html = html.replace(/&lt;(a?):(\w+):(\d+)&gt;/g, (_, animated, emoji, id) =>
+      `<img class="emoji" src="https://cdn.discordapp.com/emojis/${id}.${animated ? "gif" : "webp"}?size=48" alt=":${emoji}:" title=":${emoji}:">`);
+    html = html.replace(/&lt;t:(-?\d+)(?::([tTdDfFR]))?&gt;/g, (_, s, style) =>
+      `<time class="mention">${escapeHtml(formatTimestamp(s, style))}</time>`);
     return html.replace(/\n/g, "<br>");
   }
 
@@ -37,11 +66,11 @@ const Archive = (() => {
     }).join("") + "</div>";
   }
 
-  function renderReply(r) {
+  function renderReply(r, mentions) {
     if (!r) return "";
     return `<a class="reply-context${r.is_tracked ? " tracked" : ""}" href="${escapeHtml(r.jump_url)}" target="_blank" rel="noopener">
       <span class="reply-author">${escapeHtml(r.author_name)}</span>
-      <span class="reply-text">${escapeHtml((r.content || "").slice(0, 300))}</span></a>`;
+      <span class="reply-text">${formatContent((r.content || "").slice(0, 300), mentions)}</span></a>`;
   }
 
   function renderPost(p) {
@@ -57,7 +86,7 @@ const Archive = (() => {
       ? `<button type="button" class="link history">edited ${p.edit_count}x</button>`
       : (p.edited_at ? '<span class="muted">(edited)</span>' : "");
     el.innerHTML = `
-      ${renderReply(p.replied_to)}
+      ${renderReply(p.replied_to, p.mentions)}
       <div class="post-header">
         <span class="author">${escapeHtml(p.author_name)}</span>${badges}
         <span class="channel">#${escapeHtml(p.channel)}</span>
@@ -65,15 +94,15 @@ const Archive = (() => {
         ${edited}
         <a class="jump" href="${escapeHtml(p.jump_url)}" target="_blank" rel="noopener">Jump to message</a>
       </div>
-      <div class="content">${formatContent(p.content)}</div>
+      <div class="content">${formatContent(p.content, p.mentions)}</div>
       ${renderAttachments(p.attachments)}
       <div class="revisions" hidden></div>`;
     const btn = el.querySelector(".history");
-    if (btn) btn.addEventListener("click", () => toggleRevisions(el, p.id));
+    if (btn) btn.addEventListener("click", () => toggleRevisions(el, p.id, p.mentions));
     return el;
   }
 
-  async function toggleRevisions(el, id) {
+  async function toggleRevisions(el, id, mentions) {
     const box = el.querySelector(".revisions");
     if (!box.hidden) { box.hidden = true; return; }
     box.hidden = false;
@@ -82,7 +111,7 @@ const Archive = (() => {
       const revs = await fetchJSON(`/api/posts/${id}/revisions`);
       box.innerHTML = revs.length ? revs.map((r) => `
         <div class="revision"><div class="muted">Before edit, captured ${escapeHtml(formatDate(r.captured_at))}</div>
-        <div class="content">${formatContent(r.content || "")}</div></div>`).join("") : "No earlier versions stored.";
+        <div class="content">${formatContent(r.content || "", mentions)}</div></div>`).join("") : "No earlier versions stored.";
     } catch (e) {
       box.textContent = "Could not load history.";
     }
